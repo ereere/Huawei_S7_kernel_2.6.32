@@ -74,6 +74,20 @@ struct mdp_table_entry {
 
 extern struct mdp_ccs mdp_ccs_yuv2rgb ;
 extern struct mdp_ccs mdp_ccs_rgb2yuv ;
+extern uint32 mdp_intr_mask;
+
+#define MDP_VSYNC_TERM 0x1000
+
+
+struct vsync {
+	ktime_t vsync_time;
+	struct device *dev;
+	struct work_struct vsync_work;
+	int vsync_irq_enabled;
+};
+
+
+extern struct vsync vsync_cntrl;
 
 /*
  * MDP Image Structure
@@ -241,6 +255,7 @@ struct mdp_dma_data {
 #define MDP_PPP_DONE 				BIT(0)
 #define TV_OUT_DMA3_DONE    BIT(6)
 #define TV_ENC_UNDERRUN     BIT(7)
+#define MDP_PRIM_RDPTR      BIT(8)
 #define TV_OUT_DMA3_START   BIT(13)
 #define MDP_HIST_DONE       BIT(20)
 
@@ -677,6 +692,20 @@ int mdp_get_bytes_per_pixel(uint32_t format);
 void mdp_hw_vsync_clk_enable(struct msm_fb_data_type *mfd);
 void mdp_hw_vsync_clk_disable(struct msm_fb_data_type *mfd);
 #endif
+void mdp_dma_vsync_ctrl(int enable);
+void mdp_dma_video_vsync_ctrl(int enable);
+void mdp_dma_lcdc_vsync_ctrl(int enable);
+void mdp3_vsync_irq_enable(int intr, int term);
+void mdp3_vsync_irq_disable(int intr, int term);
 
 void mdp_dma_s_update(struct msm_fb_data_type *mfd);
+
+
+static inline int msmfb_overlay_vsync_ctrl(struct fb_info *info,
+                                               void __user *argp)
+{
+       return 0;
+}
+
+
 #endif /* MDP_H */

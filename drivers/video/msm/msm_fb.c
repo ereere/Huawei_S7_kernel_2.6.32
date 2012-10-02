@@ -254,6 +254,7 @@ static int msm_fb_probe(struct platform_device *pdev)
 	if (pdev_list_cnt >= MSM_FB_MAX_DEV_LIST)
 		return -ENOMEM;
 
+	vsync_cntrl.dev = mfd->fbi->dev;
 	mfd->panel_info.frame_count = 0;
 
 #if HUAWEI_HWID_L1(S7)
@@ -2336,6 +2337,27 @@ static int msmfb_blit(struct fb_info *info, void __user *p)
 	return 0;
 }
 
+static int msmfb_vsync_ctrl(struct fb_info *info, void __user *argp)
+{
+	int enable, ret;
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+
+	ret = copy_from_user(&enable, argp, sizeof(enable));
+	if (ret) {
+		pr_err("%s:msmfb_overlay_vsync ioctl failed", __func__);
+		return ret;
+	}
+
+	if (mfd->vsync_ctrl)
+		mfd->vsync_ctrl(enable);
+	else {
+		pr_err("%s: Vsync IOCTL not supported", __func__);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 #ifdef CONFIG_FB_MSM_OVERLAY
 static int msmfb_overlay_get(struct fb_info *info, void __user *p)
 {
@@ -2487,31 +2509,6 @@ static void msmfb_set_color_conv(struct mdp_ccs *p)
 #endif
 
 
-
-static int msmfb_vsync_ctrl(struct fb_info *info, void __user *argp)
-{
-        int enable, ret;
-        struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
-
-        ret = copy_from_user(&enable, argp, sizeof(enable));
-        if (ret) {
-                pr_err("%s:msmfb_overlay_vsync ioctl failed", __func__);
-                return ret;
-        }
-/*
-        if (mfd->vsync_ctrl)
-                mfd->vsync_ctrl(enable);
-        else {
-                pr_err("%s: Vsync IOCTL not supported", __func__);
-                return -EINVAL;
-        }
-*/
-//        mfd->use_mdp_vsync = 1;
-//	mfd->mdp_set_vsync(enable);
-        return 0;
-}
-
-
 static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			unsigned long arg)
 {
@@ -2594,6 +2591,7 @@ static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
                 up(&msm_fb_ioctl_ppp_sem);
 
                 break;
+	case MSMFB_VSYNC_CTRL:
 	case MSMFB_OVERLAY_VSYNC_CTRL:
 		down(&msm_fb_ioctl_ppp_sem);
 		ret = msmfb_vsync_ctrl(info, argp);
