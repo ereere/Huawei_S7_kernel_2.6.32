@@ -12,6 +12,10 @@ AFLAGS_head.o += -Wa,-march=armv7-a$(plus_sec)
 OBJS	= misc.o
 FONTC	= $(srctree)/drivers/video/console/font_acorn_8x8.c
 
+AFLAGS_decompress.o += -Wa,-march=armv7-a$(plus_sec)
+DECOMPRESS = decompress.o
+
+
 #
 # Architecture dependencies
 #
@@ -67,13 +71,36 @@ endif
 
 SEDFLAGS	= s/TEXT_START/$(ZTEXTADDR)/;s/BSS_START/$(ZBSSADDR)/
 
-targets       := vmlinux vmlinux.lds piggy.gz piggy.o font.o font.c \
-		 head.o misc.o $(OBJS)
+suffix_$(CONFIG_KERNEL_GZIP) = gzip
+suffix_$(CONFIG_KERNEL_LZO)  = lzo
+suffix_$(CONFIG_KERNEL_LZMA) = lzma
+suffix_$(CONFIG_KERNEL_XZ)   = xzkern
+
+
+targets       := vmlinux vmlinux.lds piggy.$(suffix_y) piggy.$(suffix_y).o ashldi3.o ashldi3.S font.o font.c \
+		 head.o misc.o decompress.o $(OBJS)
+
+extra-y       += piggy.gzip piggy.lzo piggy.lzma piggy.xzkern lib1funcs.S ashldi3.S
+
 
 ifeq ($(CONFIG_FUNCTION_TRACER),y)
 ORIG_CFLAGS := $(KBUILD_CFLAGS)
 KBUILD_CFLAGS = $(subst -pg, , $(ORIG_CFLAGS))
 endif
+
+# For __aeabi_uidivmod
+#AFLAGS_lib1funcs.o += -Wa,-march=armv7-a$(plus_sec)
+#lib1funcs = $(obj)/lib1funcs.o
+
+#$(obj)/lib1funcs.S: $(srctree)/arch/$(SRCARCH)/lib/lib1funcs.S FORCE
+#	$(call cmd,shipped)
+
+# For __aeabi_llsl
+ashldi3 = $(obj)/ashldi3.o
+
+$(obj)/ashldi3.S: $(srctree)/arch/$(SRCARCH)/lib/ashldi3.S
+	$(call cmd,shipped)
+
 
 EXTRA_CFLAGS  := -fpic -fno-builtin
 EXTRA_AFLAGS  := -Wa,-march=all
@@ -98,17 +125,19 @@ LDFLAGS_vmlinux += -p --no-undefined -X \
 # would otherwise mess up our GOT table
 CFLAGS_misc.o := -Dstatic=
 
-$(obj)/vmlinux: $(obj)/vmlinux.lds $(obj)/$(HEAD) $(obj)/piggy.o \
-	 	$(addprefix $(obj)/, $(OBJS)) FORCE
+$(obj)/vmlinux: $(obj)/vmlinux.lds $(obj)/$(HEAD) $(obj)/$(DECOMPRESS) $(obj)/piggy.$(suffix_y).o \
+	 	$(addprefix $(obj)/, $(OBJS)) $(lib1funcs) $(ashldi3) FORCE
 	$(call if_changed,ld)
 	@:
 
-AFLAGS_piggy.o += -Wa,-march=armv7-a$(plus_sec)
+AFLAGS_piggy.$(suffix_y) += -Wa,-march=armv7-a$(plus_sec)
 
-$(obj)/piggy.gz: $(obj)/../Image FORCE
-	$(call if_changed,gzip)
+$(obj)/piggy.$(suffix_y): $(obj)/../Image FORCE
+	$(call if_changed,$(suffix_y))
 
-$(obj)/piggy.o:  $(obj)/piggy.gz FORCE
+AFLAGS_piggy.$(suffix_y).o += -Wa,-march=armv7-a$(plus_sec)
+$(obj)/piggy.$(suffix_y).o:  $(obj)/piggy.$(suffix_y) FORCE
+
 
 CFLAGS_font.o := -Dstatic=
 
